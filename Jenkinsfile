@@ -29,29 +29,25 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                withCredentials([[
-                    $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'k8s'
-                ]]) {
-                    sh '''
-                    export AWS_DEFAULT_REGION=us-east-1
+                sh '''
+                export AWS_DEFAULT_REGION=us-east-1
 
-                    # 🔥 VERY IMPORTANT (fix old endpoint issue)
-                    rm -rf ~/.kube/config
+                # 🔥 Always refresh kubeconfig (VERY IMPORTANT)
+                rm -rf ~/.kube/config
 
-                    aws eks update-kubeconfig \
-                      --region us-east-1 \
-                      --name new-cluster1
+                # Connect to EKS
+                aws eks update-kubeconfig \
+                  --region us-east-1 \
+                  --name new-cluster1
 
-                    # Debug (optional but useful)
-                    kubectl get nodes
+                # Debug (check connection)
+                kubectl get nodes
 
-                    # Deploy
-                    kubectl apply -f k8s/deployment.yml
-                    kubectl apply -f k8s/service.yml
-                    kubectl apply -f k8s/ingress.yml
-                    '''
-                }
+                # Deploy to Kubernetes
+                kubectl apply -f k8s/deployment.yml
+                kubectl apply -f k8s/service.yml
+                kubectl apply -f k8s/ingress.yml
+                '''
             }
         }
     }
