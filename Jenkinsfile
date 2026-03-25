@@ -5,7 +5,6 @@ pipeline {
         DOCKERHUB_CREDENTIALS = credentials('valaxy-docker')
         DOCKER_IMAGE = "kondavenkat035/rose-web:latest"
         AWS_DEFAULT_REGION = "us-east-1"
-        // Force the pipeline to use the same config file for all steps
         KUBECONFIG = "/var/lib/jenkins/.kube/config"
     }
 
@@ -32,10 +31,8 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
-                # Connect to EKS and update the config file defined in environment
                 aws eks update-kubeconfig --region $AWS_DEFAULT_REGION --name new-cluster1
 
-                # Apply manifests
                 kubectl apply -f k8s/deployment.yml
                 kubectl apply -f k8s/service.yml
                 kubectl apply -f k8s/ingress.yml
@@ -48,9 +45,9 @@ pipeline {
                 sh '''
                 echo "Waiting for Ingress LoadBalancer to provision..."
                 
-                # Retry loop: waits up to 3 minutes for the hostname to appear
                 RETRIES=0
                 URL=""
+
                 while [ -z "$URL" ] && [ $RETRIES -lt 18 ]; do
                     URL=$(kubectl get ingress k8s-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
                     
@@ -66,13 +63,43 @@ pipeline {
                     echo "ERROR: LoadBalancer timed out. Check AWS Console."
                 else
                     echo "Application deployed successfully!"
-                    echo ""
-                    echo "Access your app at:"
                     echo "Rose Service: http://$URL/rose"
                 fi
                 echo "======================================"
                 '''
             }
+        }
+    }
+
+    post {
+        success {
+            emailext (
+                subject: "✅ SUCCESS: EKS Deployment #${BUILD_NUMBER}",
+                body: """
+                <h2>Pipeline Success</h2>
+                <p><b>Job:</b> ${JOB_NAME}</p>
+                <p><b>Build Number:</b> ${BUILD_NUMBER}</p>
+                <p>Status: SUCCESS ✅</p>
+                <p>Your application has been deployed successfully to Kubernetes (EKS).</p>
+                """,
+                to: "kondavenkat035@gmail.com",
+                from: "kondavenkat035@gmail.com"
+            )
+        }
+
+        failure {
+            emailext (
+                subject: "❌ FAILED: EKS Deployment #${BUILD_NUMBER}",
+                body: """
+                <h2>Pipeline Failed</h2>
+                <p><b>Job:</b> ${JOB_NAME}</p>
+                <p><b>Build Number:</b> ${BUILD_NUMBER}</p>
+                <p>Status: FAILURE ❌</p>
+                <p>Please check Jenkins logs and fix the issue.</p>
+                """,
+                to: "kondavenkat035@gmail.com",
+                from: "kondavenkat035@gmail.com"
+            )
         }
     }
 }
