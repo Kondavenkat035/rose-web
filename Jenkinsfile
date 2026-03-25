@@ -50,5 +50,23 @@ pipeline {
                 '''
             }
         }
+         stage('Show App URL') {
+            steps {
+        sh '''
+            export KUBECONFIG=/var/lib/jenkins/.kube/config
+
+            URL=$(kubectl get ingress k8s-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+            echo "======================================"
+            echo "Application deployed successfully"
+            echo ""
+            echo "rose:   http://$URL/rose"
+            
+            
+            echo ""
+            echo "======================================"
+        '''
+            }
+        }
     }
 }
