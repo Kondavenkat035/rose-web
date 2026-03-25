@@ -4,10 +4,12 @@ pipeline {
     environment {
         DOCKERHUB_CREDENTIALS = credentials('valaxy-docker')
         DOCKER_IMAGE = "kondavenkat035/rose-web:latest"
+        AWS_DEFAULT_REGION = "us-east-1"
+        // Force the pipeline to use the same config file for all steps
+        KUBECONFIG = "/var/lib/jenkins/.kube/config"
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/Kondavenkat035/rose-web.git'
@@ -30,42 +32,46 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
-                export AWS_DEFAULT_REGION=us-east-1
+                # Connect to EKS and update the config file defined in environment
+                aws eks update-kubeconfig --region $AWS_DEFAULT_REGION --name new-cluster1
 
-                # 🔥 Always refresh kubeconfig (VERY IMPORTANT)
-                rm -rf ~/.kube/config
-
-                # Connect to EKS
-                aws eks update-kubeconfig \
-                  --region us-east-1 \
-                  --name new-cluster1
-
-                # Debug (check connection)
-                kubectl get nodes
-
-                # Deploy to Kubernetes
+                # Apply manifests
                 kubectl apply -f k8s/deployment.yml
                 kubectl apply -f k8s/service.yml
                 kubectl apply -f k8s/ingress.yml
                 '''
             }
         }
-         stage('Show App URL') {
+
+        stage('Show App URL') {
             steps {
-        sh '''
-            export KUBECONFIG=/var/lib/jenkins/.kube/config
+                sh '''
+                echo "Waiting for Ingress LoadBalancer to provision..."
+                
+                # Retry loop: waits up to 3 minutes for the hostname to appear
+                RETRIES=0
+                URL=""
+                while [ -z "$URL" ] && [ $RETRIES -lt 18 ]; do
+                    URL=$(kubectl get ingress k8s-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+                    
+                    if [ -z "$URL" ]; then
+                        echo "Ingress hostname not ready... waiting 10s ($((RETRIES+1))/18)"
+                        sleep 10
+                        RETRIES=$((RETRIES+1))
+                    fi
+                done
 
-            URL=$(kubectl get ingress k8s-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-
-            echo "======================================"
-            echo "Application deployed successfully"
-            echo ""
-            echo "rose:   http://$URL/rose"
-            
-            
-            echo ""
-            echo "======================================"
-        '''
+                echo "======================================"
+                if [ -z "$URL" ]; then
+                    echo "ERROR: LoadBalancer timed out. Check AWS Console."
+                else
+                    echo "Application deployed successfully!"
+                    echo ""
+                    echo "Access your app at:"
+                    echo "Rose Service: http://$URL/rose"
+                fi
+                echo "======================================"
+                '''
             }
         }
     }
