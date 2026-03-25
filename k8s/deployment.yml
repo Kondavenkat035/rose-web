@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rose-web-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: rose-web
+  template:
+    metadata:
+      labels:
+        app: rose-web
+    spec:
+      containers:
+      - name: rose-web
+        image: <DOCKERHUB_USERNAME>/rose-web:latest
+        ports:
+        - containerPort: 80
