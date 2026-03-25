@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
       - name: rose-web
-        image: <DOCKERHUB_USERNAME>/rose-web:latest
+        image: kondavenkat035/rose-web:latest
         ports:
         - containerPort: 80
