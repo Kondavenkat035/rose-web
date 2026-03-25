@@ -7,8 +7,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: rose.example.com   # replace with your domain or IP
-    http:
+  - http:
       paths:
       - path: /
         pathType: Prefix
